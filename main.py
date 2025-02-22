@@ -1,67 +1,150 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import random
+import math
 from noise import pnoise2
+import mplcursors
 
-# Planet settings
-WIDTH, HEIGHT = 512, 256  # Map resolution
-SCALE = 100.0  # Controls terrain roughness
-OCTAVES = 6  # Number of noise layers
-PERSISTENCE = 0.5  # Controls detail level
-LACUNARITY = 2.0  # Controls how frequency increases per octave
+# Planet Settings
+WIDTH, HEIGHT = 256, 128  
+SCALE = 50.0  
+OCTAVES = 6
+PERSISTENCE = 0.5
+LACUNARITY = 2.0
 
-# Generate Perlin Noise-based heightmap
+# Civilization AI Settings
+NUM_CIVILIZATIONS = 5
+CIV_GROWTH_RATE = 0.02  
+CIV_SPREAD_CHANCE = 0.2  
+WAR_THRESHOLD = 0.3  # If two civs are too close, they may fight
+TECH_GROWTH_RATE = 0.01  # Tech growth per year
+
+# Orbital Mechanics
+YEAR_LENGTH = 10  
+AXIAL_TILT = 23.5  
+ORBIT_SPEED = 2 * np.pi / YEAR_LENGTH  
+ORBIT_ANGLE = 0  
+
+# Generate terrain
 def generate_heightmap():
     heightmap = np.zeros((HEIGHT, WIDTH))
     for y in range(HEIGHT):
         for x in range(WIDTH):
             heightmap[y, x] = pnoise2(
                 x / SCALE, y / SCALE,
-                octaves=OCTAVES,
-                persistence=PERSISTENCE,
-                lacunarity=LACUNARITY,
-                repeatx=WIDTH, repeaty=HEIGHT,
-                base=42  # Random seed
+                octaves=OCTAVES, persistence=PERSISTENCE,
+                lacunarity=LACUNARITY, repeatx=WIDTH, repeaty=HEIGHT,
+                base=42
             )
-    return (heightmap - np.min(heightmap)) / (np.max(heightmap) - np.min(heightmap))  # Normalize
+    return (heightmap - np.min(heightmap)) / (np.max(heightmap) - np.min(heightmap))
 
-# Generate climate zones (temperature based on latitude)
-def generate_temperature_map(heightmap):
+# Temperature map affected by orbit
+def generate_temperature_map(heightmap, orbit_angle):
     temperature_map = np.zeros((HEIGHT, WIDTH))
     for y in range(HEIGHT):
-        latitude_factor = 1 - abs((y / HEIGHT) - 0.5) * 2  # Hotter at equator, colder at poles
-        temperature_map[y, :] = latitude_factor - (heightmap[y, :] * 0.3)  # Higher = colder
-    return (temperature_map - np.min(temperature_map)) / (np.max(temperature_map) - np.min(temperature_map))  # Normalize
+        latitude_factor = 1 - abs((y / HEIGHT) - 0.5) * 2  
+        seasonal_effect = math.cos(orbit_angle) * (AXIAL_TILT / 90)  
+        temperature_map[y, :] = latitude_factor + seasonal_effect - (heightmap[y, :] * 0.3)
+    return (temperature_map - np.min(temperature_map)) / (np.max(temperature_map) - np.min(temperature_map))
 
-# Assign biome colors based on height and temperature
+# Assign biomes based on height and temperature
 def generate_biome_map(heightmap, temperature_map):
     biome_map = np.zeros((HEIGHT, WIDTH, 3))
     for y in range(HEIGHT):
         for x in range(WIDTH):
-            h = heightmap[y, x]
-            t = temperature_map[y, x]
-
-            if h < 0.3:  # Water
-                biome_map[y, x] = [0, 0, 0.5]  # Deep Blue
-            elif h < 0.35:  # Beach
-                biome_map[y, x] = [0.9, 0.8, 0.5]  # Sand color
-            elif t > 0.7:  # Desert
-                biome_map[y, x] = [0.9, 0.7, 0.3]  # Sandy color
-            elif t > 0.5:  # Grasslands
-                biome_map[y, x] = [0.1, 0.6, 0.2]  # Green
-            elif t > 0.3:  # Forest
-                biome_map[y, x] = [0.0, 0.4, 0.1]  # Dark Green
-            else:  # Snowy
-                biome_map[y, x] = [1, 1, 1]  # White
+            h, t = heightmap[y, x], temperature_map[y, x]
+            if h < 0.3:  biome_map[y, x] = [0, 0, 0.5]  
+            elif h < 0.35: biome_map[y, x] = [0.9, 0.8, 0.5]  
+            elif t > 0.7:  biome_map[y, x] = [0.9, 0.7, 0.3]  
+            elif t > 0.5:  biome_map[y, x] = [0.1, 0.6, 0.2]  
+            elif t > 0.3:  biome_map[y, x] = [0.0, 0.4, 0.1]  
+            else: biome_map[y, x] = [1, 1, 1]  
     return biome_map
 
-# Generate maps
-heightmap = generate_heightmap()
-temperature_map = generate_temperature_map(heightmap)
-biome_map = generate_biome_map(heightmap, temperature_map)
+# Initialize civilizations
+def initialize_civilizations(heightmap):
+    civilizations = []
+    for _ in range(NUM_CIVILIZATIONS):
+        while True:
+            x, y = random.randint(0, WIDTH - 1), random.randint(0, HEIGHT - 1)
+            if heightmap[y, x] > 0.35:  
+                civilizations.append({"x": x, "y": y, "population": 100, "tech": 1.0})
+                break
+    return civilizations
 
-# Display the generated planet map
-plt.figure(figsize=(10, 5))
-plt.imshow(biome_map)
-plt.axis('off')
-plt.title("Procedural Planet Generation")
-plt.show()
+# Civilization AI: Expansion, Growth, War
+def update_civilizations(civilizations, heightmap):
+    for civ in civilizations:
+        civ["population"] *= (1 + CIV_GROWTH_RATE)  
+        civ["tech"] *= (1 + TECH_GROWTH_RATE)  
+
+        if random.random() < CIV_SPREAD_CHANCE:
+            best_tile = None
+            best_score = -1
+            for dx, dy in [(0,1), (0,-1), (1,0), (-1,0)]:
+                new_x, new_y = civ["x"] + dx, civ["y"] + dy
+                if 0 <= new_x < WIDTH and 0 <= new_y < HEIGHT and heightmap[new_y, new_x] > 0.35:
+                    score = heightmap[new_y, new_x] + random.uniform(0, 0.1)  
+                    if score > best_score:
+                        best_tile = (new_x, new_y)
+                        best_score = score
+            
+            if best_tile:
+                new_x, new_y = best_tile
+                civilizations.append({"x": new_x, "y": new_y, "population": civ["population"] * 0.5, "tech": civ["tech"]})
+                civ["population"] *= 0.5  
+
+    # Check for war
+    for i, civ1 in enumerate(civilizations):
+        for j, civ2 in enumerate(civilizations):
+            if i != j:
+                dist = math.sqrt((civ1["x"] - civ2["x"])**2 + (civ1["y"] - civ2["y"])**2)
+                if dist < WAR_THRESHOLD:
+                    if civ1["population"] * civ1["tech"] > civ2["population"] * civ2["tech"]:
+                        civ1["population"] += civ2["population"] * 0.2  
+                        civilizations.pop(j)  
+
+# Draw simulation
+def draw_simulation(biome_map, civilizations, step):
+    plt.clf()
+    plt.imshow(biome_map)
+    
+    # Extract x, y, and population data for the scatter plot
+    x_coords = [civ["x"] for civ in civilizations]
+    y_coords = [civ["y"] for civ in civilizations]
+    populations = [civ["population"] for civ in civilizations]  # Ensure this is a list
+    
+    # Create the scatter plot
+    scatter = plt.scatter(
+        x_coords, y_coords,
+        color="red",
+        s=[5 + (pop / 1000) for pop in populations]
+    )
+    
+    plt.title(f"Procedural Civilization Simulation - Year {step}")
+    
+    # Add hover effect using mplcursors
+    cursor = mplcursors.cursor(scatter, hover=True)
+    cursor.connect("add", lambda sel: sel.annotation.set_text(
+        f"Population: {populations[sel.index]:.0f}"  # Use sel.index instead of sel.target.index
+    ))
+    
+    plt.pause(0.1)
+
+# Main Simulation Loop
+def run_simulation():
+    global ORBIT_ANGLE
+    heightmap = generate_heightmap()
+    civilizations = initialize_civilizations(heightmap)
+
+    step = 0
+    while True:
+        ORBIT_ANGLE = (ORBIT_ANGLE + ORBIT_SPEED) % (2 * np.pi)
+        temperature_map = generate_temperature_map(heightmap, ORBIT_ANGLE)
+        biome_map = generate_biome_map(heightmap, temperature_map)
+        update_civilizations(civilizations, heightmap)
+        draw_simulation(biome_map, civilizations, step)
+        step += 1
+
+# Run the simulation
+run_simulation()
