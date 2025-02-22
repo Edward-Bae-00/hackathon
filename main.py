@@ -64,11 +64,18 @@ def generate_biome_map(heightmap, temperature_map):
 # Initialize civilizations
 def initialize_civilizations(heightmap):
     civilizations = []
-    for _ in range(NUM_CIVILIZATIONS):
+    colors = plt.cm.get_cmap('tab10', NUM_CIVILIZATIONS)  # Assign unique colors
+    for i in range(NUM_CIVILIZATIONS):
         while True:
             x, y = random.randint(0, WIDTH - 1), random.randint(0, HEIGHT - 1)
             if heightmap[y, x] > 0.35:  
-                civilizations.append({"x": x, "y": y, "population": 100, "tech": 1.0})
+                civilizations.append({
+                    "x": x, 
+                    "y": y, 
+                    "population": 100, 
+                    "tech": 1.0, 
+                    "color": colors(i)  # Assign a unique color
+                })
                 break
     return civilizations
 
@@ -91,7 +98,13 @@ def update_civilizations(civilizations, heightmap):
             
             if best_tile:
                 new_x, new_y = best_tile
-                civilizations.append({"x": new_x, "y": new_y, "population": civ["population"] * 0.5, "tech": civ["tech"]})
+                civilizations.append({
+                    "x": new_x, 
+                    "y": new_y, 
+                    "population": civ["population"] * 0.5, 
+                    "tech": civ["tech"], 
+                    "color": civ["color"]  # Inherit the same color
+                })
                 civ["population"] *= 0.5  
 
     # Check for war
@@ -109,16 +122,25 @@ def draw_simulation(biome_map, civilizations, step):
     plt.clf()
     plt.imshow(biome_map)
     
-    # Extract x, y, and population data for the scatter plot
-    x_coords = [civ["x"] for civ in civilizations]
-    y_coords = [civ["y"] for civ in civilizations]
-    populations = [civ["population"] for civ in civilizations]  # Ensure this is a list
+    # Prepare scatter plot data
+    x_coords = []
+    y_coords = []
+    colors = []
+    populations = []
+    
+    for civ in civilizations:
+        # Add a dot for each citizen
+        num_citizens = int(civ["population"] / 10)  # Scale down for visualization
+        x_coords.extend([civ["x"] + random.uniform(-0.5, 0.5) for _ in range(num_citizens)])
+        y_coords.extend([civ["y"] + random.uniform(-0.5, 0.5) for _ in range(num_citizens)])
+        colors.extend([civ["color"]] * num_citizens)
+        populations.extend([civ["population"]] * num_citizens)
     
     # Create the scatter plot
     scatter = plt.scatter(
         x_coords, y_coords,
-        color="red",
-        s=[5 + (pop / 1000) for pop in populations]
+        color=colors,
+        s=5  # Size of each dot
     )
     
     plt.title(f"Procedural Civilization Simulation - Year {step}")
@@ -126,7 +148,7 @@ def draw_simulation(biome_map, civilizations, step):
     # Add hover effect using mplcursors
     cursor = mplcursors.cursor(scatter, hover=True)
     cursor.connect("add", lambda sel: sel.annotation.set_text(
-        f"Population: {populations[sel.index]:.0f}"  # Use sel.index instead of sel.target.index
+        f"Population: {populations[sel.index]:.0f}"  # Display population of the hovered civilization
     ))
     
     plt.pause(0.1)
