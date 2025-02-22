@@ -13,12 +13,13 @@ LACUNARITY = 2.0
 
 # Civilization Settings
 NUM_CIVILIZATIONS = 5
-CIV_GROWTH_RATE = 0.05
+CIV_GROWTH_RATE = 0.05  # Base growth rate
 CIV_SPREAD_CHANCE = 0.2
 TECH_GROWTH_RATE = 0.001
 MAX_CIVILIZATIONS = 100
 SLOW_GROWTH_THRESHOLD = 500  # Population threshold for slower growth
 SLOW_GROWTH_RATE = 0.01  # Reduced growth rate after 500 citizens
+MAX_POPULATION = 1000  # Maximum population cap
 
 # Generate terrain
 def generate_heightmap():
@@ -54,7 +55,7 @@ def generate_irregular_shape(center_x, center_y, size=10):
 
 def initialize_civilizations(heightmap):
     civilizations = []
-    colors = plt.cm.get_cmap('tab10', NUM_CIVILIZATIONS)  # Assign unique colors
+    colors = plt.get_cmap('tab10', NUM_CIVILIZATIONS)  # Assign unique colors
     for i in range(NUM_CIVILIZATIONS):
         while True:
             x, y = random.randint(0, WIDTH-1), random.randint(0, HEIGHT-1)
@@ -78,7 +79,13 @@ def update_civilizations(civilizations):
             growth_rate = SLOW_GROWTH_RATE  # Slower growth after 500 citizens
         else:
             growth_rate = CIV_GROWTH_RATE  # Normal growth rate
-        civ["population"] *= (1 + growth_rate)
+        
+        # Additive growth to slow down population increase
+        civ["population"] += civ["population"] * growth_rate
+        
+        # Cap population to prevent runaway growth
+        if civ["population"] > MAX_POPULATION:
+            civ["population"] = MAX_POPULATION
 
 def draw_simulation(biome_map, civilizations, step):
     plt.clf()  # Clear the previous frame
@@ -114,9 +121,12 @@ def run_simulation():
     biome_map = generate_biome_map(heightmap)
     civilizations = initialize_civilizations(heightmap)
     step = 0
-    while True:  # Run indefinitely
-        update_civilizations(civilizations)
-        draw_simulation(biome_map, civilizations, step)
-        step += 1
+    try:
+        while step < 1000:  # Run for 1000 steps (years)
+            update_civilizations(civilizations)
+            draw_simulation(biome_map, civilizations, step)
+            step += 1
+    except KeyboardInterrupt:
+        print("Simulation stopped by user.")
 
 run_simulation()
