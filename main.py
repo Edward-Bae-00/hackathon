@@ -16,7 +16,6 @@ LACUNARITY = 2.0
 NUM_CIVILIZATIONS = 5
 CIV_GROWTH_RATE = 0.02  
 CIV_SPREAD_CHANCE = 0.2  
-WAR_THRESHOLD = 0.3  # If two civs are too close, they may fight
 TECH_GROWTH_RATE = 0.01  # Tech growth per year
 
 # Orbital Mechanics
@@ -79,9 +78,10 @@ def initialize_civilizations(heightmap):
                 break
     return civilizations
 
-# Civilization AI: Expansion, Growth, War
+# Civilization AI: Expansion, Growth
 def update_civilizations(civilizations, heightmap):
     for civ in civilizations:
+        # Ensure population only grows
         civ["population"] *= (1 + CIV_GROWTH_RATE)  
         civ["tech"] *= (1 + TECH_GROWTH_RATE)  
 
@@ -98,24 +98,14 @@ def update_civilizations(civilizations, heightmap):
             
             if best_tile:
                 new_x, new_y = best_tile
+                # Create a new civilization without reducing the original population
                 civilizations.append({
                     "x": new_x, 
                     "y": new_y, 
-                    "population": civ["population"] * 0.5, 
+                    "population": 100,  # Start with a fixed population for new settlements
                     "tech": civ["tech"], 
                     "color": civ["color"]  # Inherit the same color
                 })
-                civ["population"] *= 0.5  
-
-    # Check for war
-    for i, civ1 in enumerate(civilizations):
-        for j, civ2 in enumerate(civilizations):
-            if i != j:
-                dist = math.sqrt((civ1["x"] - civ2["x"])**2 + (civ1["y"] - civ2["y"])**2)
-                if dist < WAR_THRESHOLD:
-                    if civ1["population"] * civ1["tech"] > civ2["population"] * civ2["tech"]:
-                        civ1["population"] += civ2["population"] * 0.2  
-                        civilizations.pop(j)  
 
 # Draw simulation
 def draw_simulation(biome_map, civilizations, step):
