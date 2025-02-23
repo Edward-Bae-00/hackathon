@@ -1,0 +1,48 @@
+# Ignore Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Ignore virtual environments
+venv/
+env/
+.venv/
+ENV/
+
+# Ignore IDE-specific files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Ignore compiled files
+*.pyc
+*.pyo
+*.pyd
+*.so
+
+# Ignore distribution and build artifacts
+dist/
+build/
+*.egg-info/
+*.egg
+*.whl
+
+# Ignore local development files
+*.log
+*.sqlite3
+*.db
+*.env
+.env
+.env.local
+
+# Ignore system-specific files
+.DS_Store
+Thumbs.db
+
+# Ignore directories you mentioned
+bin/
+include/
+lib/
+share/
+Scripts/
